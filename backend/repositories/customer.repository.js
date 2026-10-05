@@ -8,10 +8,14 @@ const findById = async (id) => {
   return await Customer.findByPk(id);
 };
 
-const findByEmail = async (email) => {
+const findByUserId = async (userId) => {
   return await Customer.findOne({
-    where: { email },
+    where: { userId },
   });
+};
+
+const findByEmail = async (email) => {
+  return await Customer.findOne({ where: { email } });
 };
 
 const findAll = async ({ limit, offset, where }) => {
@@ -32,19 +36,17 @@ const deleteCustomer = async (customer) => {
 };
 
 const countLoans = async (customerId) => {
-  return await Loan.count({
-    where: {
-      customerId,
-    },
-  });
+  return await Loan.count({ where: { customerId } });
 };
 
 module.exports = {
   create,
   findById,
+  findByUserId,
   findByEmail,
   findAll,
   update,
   deleteCustomer,
   countLoans,
 };
+

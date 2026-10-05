@@ -2,14 +2,15 @@ const loanService = require("../services/loan.service");
 
 const createLoan = async (req, res) => {
   try {
-    const loan = await loanService.createLoan(req.body);
+    const loan = await loanService.createLoan(
+      req.body,
+      req.user
+    );
 
     return res.status(201).json({
       success: true,
-      message: "Loan application created successfully",
-      data: {
-        loan,
-      },
+      message: "Loan created successfully",
+      data: { loan },
     });
   } catch (error) {
     console.error("Create loan error:", error);
@@ -23,7 +24,12 @@ const createLoan = async (req, res) => {
 
 const getLoans = async (req, res) => {
   try {
-    const { page, limit, search, status } = req.query;
+    const {
+      page,
+      limit,
+      search,
+      status,
+    } = req.query;
 
     const result = await loanService.getLoans({
       page,
@@ -41,7 +47,7 @@ const getLoans = async (req, res) => {
 
     return res.status(error.statusCode || 500).json({
       success: false,
-      message: error.message || "Failed to get loans",
+      message: error.message || "Failed to fetch loans",
     });
   }
 };
@@ -49,21 +55,20 @@ const getLoans = async (req, res) => {
 const getLoanById = async (req, res) => {
   try {
     const loan = await loanService.getLoanById(
-      req.params.id
+      req.params.id,
+      req.user
     );
 
     return res.status(200).json({
       success: true,
-      data: {
-        loan,
-      },
+      data: { loan },
     });
   } catch (error) {
-    console.error("Get loan error:", error);
+    console.error("Get loan by ID error:", error);
 
     return res.status(error.statusCode || 500).json({
       success: false,
-      message: error.message || "Failed to get loan",
+      message: error.message || "Failed to fetch loan",
     });
   }
 };
@@ -78,9 +83,7 @@ const updateLoan = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Loan updated successfully",
-      data: {
-        loan,
-      },
+      data: { loan },
     });
   } catch (error) {
     console.error("Update loan error:", error);
@@ -102,9 +105,7 @@ const approveLoan = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Loan approved successfully",
-      data: {
-        loan,
-      },
+      data: { loan },
     });
   } catch (error) {
     console.error("Approve loan error:", error);
@@ -126,9 +127,7 @@ const rejectLoan = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Loan rejected successfully",
-      data: {
-        loan,
-      },
+      data: { loan },
     });
   } catch (error) {
     console.error("Reject loan error:", error);
@@ -149,9 +148,7 @@ const activateLoan = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Loan activated successfully",
-      data: {
-        loan,
-      },
+      data: { loan },
     });
   } catch (error) {
     console.error("Activate loan error:", error);
@@ -172,3 +169,8 @@ module.exports = {
   rejectLoan,
   activateLoan,
 };
+
+
+
+
+
