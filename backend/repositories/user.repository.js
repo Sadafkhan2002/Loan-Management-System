@@ -1,5 +1,4 @@
-const { User } = require("../models");
-
+const { User } = require("../database/models");
 const create = async (data) => {
   return await User.create(data);
 };

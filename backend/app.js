@@ -1,16 +1,10 @@
 const express = require("express");
 const cors = require("cors");
 
-const authRoutes = require("./routes/auth.routes");
-const adminRoutes = require("./routes/admin.routes");
-const customerRoutes = require("./routes/customer.routes");
-const loanRoutes = require("./routes/loan.routes");
-const paymentRoutes = require("./routes/payment.routes");
-const userRoutes = require("./routes/user.routes");
-const dashboardRoutes = require("./routes/dashboard.routes");
-const reportRoutes = require("./routes/report.routes");
-const notificationRoutes =
-  require("./routes/notification.routes");
+const routes = require("./routes");
+const HttpStatus = require("./enums/http-status.enum");
+const errorHandler =
+  require("./middleware/error.middleware");
 
 const app = express();
 
@@ -38,55 +32,44 @@ app.use(
 // ==========================================
 
 app.get("/", (req, res) => {
-  res.status(200).json({
+  res.status(HttpStatus.OK).json({
     success: true,
-    message: "Loan Management System API is running",
+    message:
+      "Loan Management System API is running",
   });
 });
 
 app.get("/api/test", (req, res) => {
-  res.status(200).json({
+  res.status(HttpStatus.OK).json({
     success: true,
     message: "API test successful",
   });
 });
 
 // ==========================================
-// Authentication Routes
+// API Routes
 // ==========================================
 
-app.use("/api/auth", authRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/customers", customerRoutes);
-app.use("/api/loans", loanRoutes);
-app.use("/api/payments", paymentRoutes);
-app.use("/api/users", userRoutes);
-app.use(
-  "/api/dashboard",
-  dashboardRoutes
-);
-app.use(
-  "/api/reports",
-  reportRoutes
-);
-app.use(
-  "/api/notifications",
-  notificationRoutes
-);
+app.use("/api", routes);
 
 // ==========================================
 // 404 Handler
 // ==========================================
 
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route not found: ${req.method} ${req.originalUrl}`,
-  });
+app.use((req, res, next) => {
+  const error = new Error(
+    "Route not found"
+  );
+
+  error.statusCode = HttpStatus.NOT_FOUND;
+
+  next(error);
 });
 
 // ==========================================
-// Export
+// Central Error Handler
 // ==========================================
+
+app.use(errorHandler);
 
 module.exports = app;

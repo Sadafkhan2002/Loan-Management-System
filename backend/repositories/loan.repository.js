@@ -1,5 +1,9 @@
-const { Loan, Customer, User, Payment } = require("../models");
-
+const {
+  Loan,
+  Customer,
+  User,
+  Payment,
+} = require("../database/models");
 const create = async (data) => {
   return await Loan.create(data);
 };

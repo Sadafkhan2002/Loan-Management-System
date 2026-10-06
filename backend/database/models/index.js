@@ -1,4 +1,4 @@
-const sequelize = require("../config/database");
+const sequelize = require("../../config/database");
 
 const User = require("./User");
 const Customer = require("./Customer");
@@ -89,10 +89,6 @@ Notification.belongsTo(Customer, {
   foreignKey: "customerId",
   as: "customer",
 });
-
-// ==========================================
-// Export all models
-// ==========================================
 
 module.exports = {
   sequelize,

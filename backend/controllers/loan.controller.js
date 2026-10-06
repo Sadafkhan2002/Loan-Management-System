@@ -1,29 +1,25 @@
 const loanService = require("../services/loan.service");
+const asyncHandler = require("../middleware/asyncHandler");
+const HttpStatus = require("../enums/http-status.enum");
 
-const createLoan = async (req, res) => {
-  try {
-    const loan = await loanService.createLoan(
-      req.body,
-      req.user
-    );
+const createLoan = asyncHandler(
+  async (req, res) => {
+    const loan =
+      await loanService.createLoan(
+        req.body,
+        req.user
+      );
 
-    return res.status(201).json({
+    return res.status(HttpStatus.CREATED).json({
       success: true,
       message: "Loan created successfully",
       data: { loan },
     });
-  } catch (error) {
-    console.error("Create loan error:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to create loan",
-    });
   }
-};
+);
 
-const getLoans = async (req, res) => {
-  try {
+const getLoans = asyncHandler(
+  async (req, res) => {
     const {
       page,
       limit,
@@ -31,134 +27,98 @@ const getLoans = async (req, res) => {
       status,
     } = req.query;
 
-    const result = await loanService.getLoans({
-      page,
-      limit,
-      search,
-      status,
-    });
+    const result =
+      await loanService.getLoans({
+        page,
+        limit,
+        search,
+        status,
+      });
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       data: result,
     });
-  } catch (error) {
-    console.error("Get loans error:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to fetch loans",
-    });
   }
-};
+);
 
-const getLoanById = async (req, res) => {
-  try {
-    const loan = await loanService.getLoanById(
-      req.params.id,
-      req.user
-    );
+const getLoanById = asyncHandler(
+  async (req, res) => {
+    const loan =
+      await loanService.getLoanById(
+        req.params.id,
+        req.user
+      );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       data: { loan },
     });
-  } catch (error) {
-    console.error("Get loan by ID error:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to fetch loan",
-    });
   }
-};
+);
 
-const updateLoan = async (req, res) => {
-  try {
-    const loan = await loanService.updateLoan(
-      req.params.id,
-      req.body
-    );
+const updateLoan = asyncHandler(
+  async (req, res) => {
+    const loan =
+      await loanService.updateLoan(
+        req.params.id,
+        req.body
+      );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       message: "Loan updated successfully",
       data: { loan },
     });
-  } catch (error) {
-    console.error("Update loan error:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to update loan",
-    });
   }
-};
+);
 
-const approveLoan = async (req, res) => {
-  try {
-    const loan = await loanService.approveLoan(
-      req.params.id,
-      req.user.id
-    );
+const approveLoan = asyncHandler(
+  async (req, res) => {
+    const loan =
+      await loanService.approveLoan(
+        req.params.id,
+        req.user.id
+      );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       message: "Loan approved successfully",
       data: { loan },
     });
-  } catch (error) {
-    console.error("Approve loan error:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to approve loan",
-    });
   }
-};
+);
 
-const rejectLoan = async (req, res) => {
-  try {
-    const loan = await loanService.rejectLoan(
-      req.params.id,
-      req.user.id
-    );
+const rejectLoan = asyncHandler(
+  async (req, res) => {
+    const loan =
+      await loanService.rejectLoan(
+        req.params.id,
+        req.user.id
+      );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       message: "Loan rejected successfully",
       data: { loan },
     });
-  } catch (error) {
-    console.error("Reject loan error:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to reject loan",
-    });
   }
-};
+);
 
-const activateLoan = async (req, res) => {
-  try {
-    const loan = await loanService.activateLoan(
-      req.params.id
-    );
+const activateLoan = asyncHandler(
+  async (req, res) => {
+    const loan =
+      await loanService.activateLoan(
+        req.params.id
+      );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       message: "Loan activated successfully",
       data: { loan },
     });
-  } catch (error) {
-    console.error("Activate loan error:", error);
-
-    return res.status(error.statusCode || 500).json({
-      success: false,
-      message: error.message || "Failed to activate loan",
-    });
   }
-};
+);
 
 module.exports = {
   createLoan,
@@ -169,8 +129,3 @@ module.exports = {
   rejectLoan,
   activateLoan,
 };
-
-
-
-
-

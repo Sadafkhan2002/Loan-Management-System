@@ -1,4 +1,4 @@
-const { Notification } = require("../models");
+const { Notification } = require("../database/models");
 
 const create = async (data) => {
   return await Notification.create(data);

@@ -1,11 +1,14 @@
 const notificationService =
   require("../services/notification.service");
 
-const getNotifications = async (
-  req,
-  res
-) => {
-  try {
+const asyncHandler =
+  require("../middleware/asyncHandler");
+
+const HttpStatus =
+  require("../enums/http-status.enum");
+
+const getNotifications = asyncHandler(
+  async (req, res) => {
     const result =
       await notificationService.getNotifications({
         user: req.user,
@@ -13,70 +16,41 @@ const getNotifications = async (
         limit: req.query.limit,
       });
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       data: result,
     });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+);
 
-const markAsRead = async (
-  req,
-  res
-) => {
-  try {
+const markAsRead = asyncHandler(
+  async (req, res) => {
     const notification =
       await notificationService.markAsRead(
         req.params.id,
         req.user
       );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
-      message:
-        "Notification marked as read",
+      message: "Notification marked as read",
       data: notification,
     });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+);
 
-const markAllAsRead = async (
-  req,
-  res
-) => {
-  try {
+const markAllAsRead = asyncHandler(
+  async (req, res) => {
     await notificationService.markAllAsRead(
       req.user
     );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
-      message:
-        "All notifications marked as read",
-    });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
+      message: "All notifications marked as read",
     });
   }
-};
+);
 
 module.exports = {
   getNotifications,

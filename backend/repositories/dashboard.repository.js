@@ -2,7 +2,7 @@ const {
   Customer,
   Loan,
   Payment,
-} = require("../models");
+} = require("../database/models");
 
 const { Op } = require("sequelize");
 

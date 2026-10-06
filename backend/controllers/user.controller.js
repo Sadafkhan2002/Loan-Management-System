@@ -1,7 +1,9 @@
 const userService = require("../services/user.service");
+const asyncHandler = require("../middleware/asyncHandler");
+const HttpStatus = require("../enums/http-status.enum");
 
-const getUsers = async (req, res) => {
-  try {
+const getUsers = asyncHandler(
+  async (req, res) => {
     const result =
       await userService.getUsers({
         page: req.query.page,
@@ -11,43 +13,29 @@ const getUsers = async (req, res) => {
         status: req.query.status,
       });
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       data: result,
     });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+);
 
-const getUserById = async (req, res) => {
-  try {
+const getUserById = asyncHandler(
+  async (req, res) => {
     const user =
       await userService.getUserById(
         req.params.id
       );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       data: user,
     });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+);
 
-const updateUser = async (req, res) => {
-  try {
+const updateUser = asyncHandler(
+  async (req, res) => {
     const user =
       await userService.updateUser(
         req.params.id,
@@ -55,26 +43,16 @@ const updateUser = async (req, res) => {
         req.user.id
       );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       message: "User updated successfully",
       data: user,
     });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+);
 
-const updateUserStatus = async (
-  req,
-  res
-) => {
-  try {
+const updateUserStatus = asyncHandler(
+  async (req, res) => {
     const user =
       await userService.updateUserStatus(
         req.params.id,
@@ -82,41 +60,28 @@ const updateUserStatus = async (
         req.user.id
       );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
-      message: "User status updated successfully",
+      message:
+        "User status updated successfully",
       data: user,
     });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+);
 
-const deleteUser = async (req, res) => {
-  try {
+const deleteUser = asyncHandler(
+  async (req, res) => {
     await userService.deleteUser(
       req.params.id,
       req.user.id
     );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       message: "User deleted successfully",
     });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+);
 
 module.exports = {
   getUsers,

@@ -4,8 +4,7 @@ const app = require("./app");
 const sequelize = require("./config/database");
 
 // Load models and associations
-require("./models");
-
+require("./database/models");
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {

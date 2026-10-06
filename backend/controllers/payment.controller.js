@@ -1,74 +1,52 @@
 const paymentService = require("../services/payment.service");
+const asyncHandler = require("../middleware/asyncHandler");
+const HttpStatus = require("../enums/http-status.enum");
 
-const createPayment = async (req, res) => {
-  try {
+const createPayment = asyncHandler(
+  async (req, res) => {
     const payment =
       await paymentService.createPayment(
         req.body
       );
 
-    return res.status(201).json({
+    return res.status(HttpStatus.CREATED).json({
       success: true,
       message: "Payment recorded successfully",
       data: payment,
     });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+);
 
-const getPaymentById = async (req, res) => {
-  try {
+const getPaymentById = asyncHandler(
+  async (req, res) => {
     const payment =
       await paymentService.getPaymentById(
         req.params.id
       );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       data: payment,
     });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+);
 
-const getPaymentsByLoanId = async (
-  req,
-  res
-) => {
-  try {
+const getPaymentsByLoanId = asyncHandler(
+  async (req, res) => {
     const payments =
       await paymentService.getPaymentsByLoanId(
         req.params.loanId
       );
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       data: payments,
     });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+);
 
-const getPayments = async (req, res) => {
-  try {
+const getPayments = asyncHandler(
+  async (req, res) => {
     const result =
       await paymentService.getPayments({
         page: req.query.page,
@@ -78,19 +56,12 @@ const getPayments = async (req, res) => {
           req.query.paymentMethod,
       });
 
-    return res.status(200).json({
+    return res.status(HttpStatus.OK).json({
       success: true,
       data: result,
     });
-  } catch (error) {
-    return res.status(
-      error.statusCode || 500
-    ).json({
-      success: false,
-      message: error.message,
-    });
   }
-};
+);
 
 module.exports = {
   createPayment,
