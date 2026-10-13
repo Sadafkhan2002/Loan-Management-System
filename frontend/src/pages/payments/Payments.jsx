@@ -13,7 +13,11 @@ import paymentService from "../../services/payment.service";
 import loanService from "../../services/loan.service";
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
+import Loading from "../../components/common/Loading";
+import ErrorMessage from "../../components/common/ErrorMessage";
 import { useAuth } from "../../context/AuthContext";
+import { ROLES } from "../../constants/roles";
+import { getErrorMessage } from "../../utils/error";
 
 const initialForm = {
   loanId: "",
@@ -37,7 +41,6 @@ const Payments = () => {
   const [success, setSuccess] = useState("");
 
   const [searchLoanId, setSearchLoanId] = useState("");
-
   const [page, setPage] = useState(1);
 
   const [pagination, setPagination] = useState({
@@ -48,25 +51,18 @@ const Payments = () => {
   });
 
   const [showModal, setShowModal] = useState(false);
-
   const [showDetails, setShowDetails] = useState(false);
-
   const [selectedPayment, setSelectedPayment] = useState(null);
 
   const [form, setForm] = useState(initialForm);
-
   const [submitting, setSubmitting] = useState(false);
-
   const [deletingId, setDeletingId] = useState(null);
 
-  const isStaff = user?.role === "admin" || user?.role === "loan_officer";
+  const isStaff = [ROLES.ADMIN, ROLES.LOAN_OFFICER].includes(user?.role);
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === ROLES.ADMIN;
 
-  // ==========================================
-  // Fetch Payments
-  // ==========================================
-
+  // Fetch payments
   const fetchPayments = async () => {
     try {
       setLoading(true);
@@ -89,18 +85,13 @@ const Payments = () => {
         },
       );
     } catch (error) {
-      console.error("Fetch payments error:", error);
-
-      setError(error.response?.data?.message || "Failed to load payments.");
+      setError(getErrorMessage(error, "Failed to load payments."));
     } finally {
       setLoading(false);
     }
   };
 
-  // ==========================================
-  // Fetch Loans
-  // ==========================================
-
+  // Fetch active loans for staff
   const fetchLoans = async () => {
     try {
       setLoansLoading(true);
@@ -113,7 +104,7 @@ const Payments = () => {
 
       setLoans(response.data?.loans || []);
     } catch (error) {
-      console.error("Fetch loans error:", error);
+      setError(getErrorMessage(error, "Failed to load active loans."));
     } finally {
       setLoansLoading(false);
     }
@@ -129,33 +120,28 @@ const Payments = () => {
     }
   }, [user?.role]);
 
-  // ==========================================
-  // Search
-  // ==========================================
-
+  // Search payments
   const handleSearch = (event) => {
     event.preventDefault();
 
-    setPage(1);
-
-    fetchPayments();
+    if (page !== 1) {
+      setPage(1);
+    } else {
+      fetchPayments();
+    }
   };
 
-  // ==========================================
-  // Form Change
-  // ==========================================
-
+  // Handle form changes
   const handleChange = (event) => {
-    setForm({
-      ...form,
-      [event.target.name]: event.target.value,
-    });
+    const { name, value } = event.target;
+
+    setForm((previousForm) => ({
+      ...previousForm,
+      [name]: value,
+    }));
   };
 
-  // ==========================================
-  // Open Create Modal
-  // ==========================================
-
+  // Open payment form
   const openCreateModal = () => {
     setForm({
       ...initialForm,
@@ -164,14 +150,10 @@ const Payments = () => {
 
     setError("");
     setSuccess("");
-
     setShowModal(true);
   };
 
-  // ==========================================
-  // Close Modal
-  // ==========================================
-
+  // Close payment form
   const closeModal = () => {
     if (submitting) return;
 
@@ -179,10 +161,7 @@ const Payments = () => {
     setForm(initialForm);
   };
 
-  // ==========================================
-  // Create Payment
-  // ==========================================
-
+  // Create payment
   const handleSubmit = async (event) => {
     event.preventDefault();
 
@@ -204,22 +183,19 @@ const Payments = () => {
 
       setSuccess("Payment recorded successfully.");
 
-      closeModal();
+      // Close the modal directly because submitting is still true.
+      setShowModal(false);
+      setForm(initialForm);
 
       await fetchPayments();
     } catch (error) {
-      console.error("Create payment error:", error);
-
-      setError(error.response?.data?.message || "Failed to record payment.");
+      setError(getErrorMessage(error, "Failed to record payment."));
     } finally {
       setSubmitting(false);
     }
   };
 
-  // ==========================================
-  // View Payment
-  // ==========================================
-
+  // View payment details
   const handleViewPayment = async (payment) => {
     try {
       setError("");
@@ -230,18 +206,11 @@ const Payments = () => {
 
       setShowDetails(true);
     } catch (error) {
-      console.error("Get payment error:", error);
-
-      setError(
-        error.response?.data?.message || "Failed to load payment details.",
-      );
+      setError(getErrorMessage(error, "Failed to load payment details."));
     }
   };
 
-  // ==========================================
-  // Delete Payment
-  // ==========================================
-
+  // Delete payment (admin only)
   const handleDelete = async (payment) => {
     const confirmed = window.confirm(
       "Are you sure you want to delete this payment?",
@@ -260,22 +229,18 @@ const Payments = () => {
 
       await fetchPayments();
     } catch (error) {
-      console.error("Delete payment error:", error);
-
-      setError(error.response?.data?.message || "Failed to delete payment.");
+      setError(getErrorMessage(error, "Failed to delete payment."));
     } finally {
       setDeletingId(null);
     }
   };
 
-  // ==========================================
-  // Helpers
-  // ==========================================
-
+  // Format currency
   const formatCurrency = (value) => {
     return `PKR ${Number(value || 0).toLocaleString()}`;
   };
 
+  // Get loan number
   const getLoanNumber = (payment) => {
     if (payment.loan?.loanNumber) {
       return payment.loan.loanNumber;
@@ -288,20 +253,16 @@ const Payments = () => {
     return loan?.loanNumber || `Loan #${payment.loanId}`;
   };
 
+  // Format date
   const formatDate = (date) => {
     if (!date) return "-";
 
     return new Date(date).toLocaleDateString();
   };
 
-  // ==========================================
-  // Render
-  // ==========================================
-
   return (
     <div className="space-y-6">
       {/* Header */}
-
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Payments</h1>
@@ -320,21 +281,18 @@ const Payments = () => {
       </div>
 
       {/* Messages */}
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      {error && <ErrorMessage message={error} />}
 
       {success && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div
+          role="status"
+          className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+        >
           {success}
         </div>
       )}
 
       {/* Search */}
-
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <form
           onSubmit={handleSearch}
@@ -345,6 +303,7 @@ const Payments = () => {
 
             <input
               type="number"
+              min="1"
               value={searchLoanId}
               onChange={(event) => setSearchLoanId(event.target.value)}
               placeholder="Search by Loan ID..."
@@ -361,12 +320,11 @@ const Payments = () => {
         </form>
       </div>
 
-      {/* Desktop Table */}
-
+      {/* Desktop table */}
       <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:block">
         {loading ? (
-          <div className="p-10 text-center text-slate-500">
-            Loading payments...
+          <div className="p-10">
+            <Loading message="Loading payments..." />
           </div>
         ) : payments.length === 0 ? (
           <div className="p-10 text-center text-slate-500">
@@ -439,19 +397,23 @@ const Payments = () => {
                     <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">
                         <button
+                          type="button"
                           onClick={() => handleViewPayment(payment)}
                           className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                          title="View"
+                          title="View payment"
+                          aria-label={`View payment ${payment.id}`}
                         >
                           <Eye className="h-4 w-4" />
                         </button>
 
                         {isAdmin && (
                           <button
+                            type="button"
                             disabled={deletingId === payment.id}
                             onClick={() => handleDelete(payment)}
                             className="rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:opacity-50"
-                            title="Delete"
+                            title="Delete payment"
+                            aria-label={`Delete payment ${payment.id}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -466,12 +428,11 @@ const Payments = () => {
         )}
       </div>
 
-      {/* Mobile Cards */}
-
+      {/* Mobile cards */}
       <div className="space-y-4 lg:hidden">
         {loading ? (
-          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm">
-            Loading payments...
+          <div className="rounded-xl bg-white p-8 shadow-sm">
+            <Loading message="Loading payments..." />
           </div>
         ) : payments.length === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm">
@@ -519,6 +480,7 @@ const Payments = () => {
 
               <div className="mt-4 flex gap-2 border-t border-slate-100 pt-4">
                 <button
+                  type="button"
                   onClick={() => handleViewPayment(payment)}
                   className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"
                 >
@@ -528,6 +490,7 @@ const Payments = () => {
 
                 {isAdmin && (
                   <button
+                    type="button"
                     disabled={deletingId === payment.id}
                     onClick={() => handleDelete(payment)}
                     className="inline-flex items-center rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
@@ -543,7 +506,6 @@ const Payments = () => {
       </div>
 
       {/* Pagination */}
-
       {!loading && pagination.totalPages > 0 && (
         <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
@@ -553,19 +515,23 @@ const Payments = () => {
 
           <div className="flex gap-2">
             <button
+              type="button"
               disabled={page <= 1}
               onClick={() => setPage((value) => Math.max(1, value - 1))}
               className="rounded-lg border border-slate-300 p-2 disabled:opacity-40"
+              aria-label="Previous page"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
 
             <button
+              type="button"
               disabled={page >= pagination.totalPages}
               onClick={() =>
                 setPage((value) => Math.min(pagination.totalPages, value + 1))
               }
               className="rounded-lg border border-slate-300 p-2 disabled:opacity-40"
+              aria-label="Next page"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -573,8 +539,7 @@ const Payments = () => {
         </div>
       )}
 
-      {/* Create Payment Modal */}
-
+      {/* Create payment modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
@@ -590,26 +555,34 @@ const Payments = () => {
               </div>
 
               <button
+                type="button"
                 onClick={closeModal}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                disabled={submitting}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+                aria-label="Close payment form"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Loan */}
+            {error && <ErrorMessage message={error} />}
 
+            <form onSubmit={handleSubmit} className="mt-4 space-y-5">
+              {/* Loan selection */}
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                <label
+                  htmlFor="loanId"
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
                   Loan
                 </label>
 
                 <select
+                  id="loanId"
                   name="loanId"
                   value={form.loanId}
                   onChange={handleChange}
-                  disabled={loansLoading}
+                  disabled={loansLoading || submitting}
                   required
                   className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
                 >
@@ -624,6 +597,12 @@ const Payments = () => {
                     </option>
                   ))}
                 </select>
+
+                {!loansLoading && loans.length === 0 && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    No active loans are available to select.
+                  </p>
+                )}
               </div>
 
               <div className="grid gap-5 sm:grid-cols-2">
@@ -647,21 +626,24 @@ const Payments = () => {
                 />
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                  <label
+                    htmlFor="paymentMethod"
+                    className="mb-1.5 block text-sm font-medium text-slate-700"
+                  >
                     Payment Method
                   </label>
 
                   <select
+                    id="paymentMethod"
                     name="paymentMethod"
                     value={form.paymentMethod}
                     onChange={handleChange}
+                    disabled={submitting}
                     required
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                   >
                     <option value="cash">Cash</option>
-
                     <option value="bank">Bank</option>
-
                     <option value="online">Online</option>
                   </select>
                 </div>
@@ -677,14 +659,19 @@ const Payments = () => {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                <label
+                  htmlFor="notes"
+                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                >
                   Notes
                 </label>
 
                 <textarea
+                  id="notes"
                   name="notes"
                   value={form.notes}
                   onChange={handleChange}
+                  disabled={submitting}
                   rows={4}
                   placeholder="Optional payment notes"
                   className="w-full resize-none rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -695,12 +682,16 @@ const Payments = () => {
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  disabled={submitting}
+                  className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Cancel
                 </button>
 
-                <Button type="submit" disabled={submitting}>
+                <Button
+                  type="submit"
+                  disabled={submitting || loansLoading || loans.length === 0}
+                >
                   {submitting ? "Saving..." : "Record Payment"}
                 </Button>
               </div>
@@ -709,8 +700,7 @@ const Payments = () => {
         </div>
       )}
 
-      {/* Payment Details Modal */}
-
+      {/* Payment details modal */}
       {showDetails && selectedPayment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
@@ -726,8 +716,10 @@ const Payments = () => {
               </div>
 
               <button
+                type="button"
                 onClick={() => setShowDetails(false)}
                 className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                aria-label="Close payment details"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -791,6 +783,7 @@ const Payments = () => {
 
             <div className="mt-6 flex justify-end">
               <button
+                type="button"
                 onClick={() => setShowDetails(false)}
                 className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >

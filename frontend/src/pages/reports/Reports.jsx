@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BarChart3,
   CreditCard,
-  Download,
   FileText,
   RefreshCw,
   Users,
@@ -11,129 +10,273 @@ import {
 
 import reportService from "../../services/report.service";
 
+import Loading from "../../components/common/Loading";
+import ErrorMessage from "../../components/common/ErrorMessage";
+
+import { getErrorMessage } from "../../utils/error";
+
+// ==========================================
+// Report Configuration
+// ==========================================
+
+const REPORT_TYPES = Object.freeze({
+  FINANCIAL: "financial",
+  LOANS: "loans",
+  PAYMENTS: "payments",
+  CUSTOMERS: "customers",
+});
+
+const reportTabs = [
+  {
+    id: REPORT_TYPES.FINANCIAL,
+    label: "Financial",
+    icon: Wallet,
+  },
+  {
+    id: REPORT_TYPES.LOANS,
+    label: "Loans",
+    icon: CreditCard,
+  },
+  {
+    id: REPORT_TYPES.PAYMENTS,
+    label: "Payments",
+    icon: BarChart3,
+  },
+  {
+    id: REPORT_TYPES.CUSTOMERS,
+    label: "Customers",
+    icon: Users,
+  },
+];
+
+// ==========================================
+// Formatting Helpers
+// ==========================================
+
+const formatCurrency = (value) => {
+  const number = Number(value ?? 0);
+
+  return new Intl.NumberFormat("en-PK", {
+    style: "currency",
+    currency: "PKR",
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(number) ? number : 0);
+};
+
+const formatNumber = (value) => {
+  const number = Number(value ?? 0);
+
+  return new Intl.NumberFormat("en-PK").format(
+    Number.isFinite(number) ? number : 0,
+  );
+};
+
+const formatDate = (value) => {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString();
+};
+
+const getValue = (obj, keys, fallback = 0) => {
+  if (!obj) return fallback;
+
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null) {
+      return obj[key];
+    }
+  }
+
+  return fallback;
+};
+
+// ==========================================
+// API Method Selection
+// ==========================================
+
+const getReportData = (type, params) => {
+  switch (type) {
+    case REPORT_TYPES.FINANCIAL:
+      return reportService.getFinancialReports(params);
+
+    case REPORT_TYPES.LOANS:
+      return reportService.getLoanReports(params);
+
+    case REPORT_TYPES.PAYMENTS:
+      return reportService.getPaymentReports(params);
+
+    case REPORT_TYPES.CUSTOMERS:
+      return reportService.getCustomerReports(params);
+
+    default:
+      throw new Error("Invalid report type selected.");
+  }
+};
+
+// ==========================================
+// Reports Component
+// ==========================================
+
 const Reports = () => {
-  const [activeReport, setActiveReport] = useState("financial");
+  // ==========================================
+  // State
+  // ==========================================
+
+  const [activeReport, setActiveReport] = useState(REPORT_TYPES.FINANCIAL);
 
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
 
+  // Applied filters are kept separately from the
+  // dates currently being edited in the inputs.
+
+  const [appliedFilters, setAppliedFilters] = useState({
+    from: "",
+    to: "",
+  });
+
   const [data, setData] = useState(null);
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const reportTabs = [
-    {
-      id: "financial",
-      label: "Financial",
-      icon: Wallet,
-    },
-    {
-      id: "loans",
-      label: "Loans",
-      icon: CreditCard,
-    },
-    {
-      id: "payments",
-      label: "Payments",
-      icon: BarChart3,
-    },
-    {
-      id: "customers",
-      label: "Customers",
-      icon: Users,
-    },
-  ];
+  // Tracks requests so an older API response cannot
+  // replace the latest selected report.
 
-  const getParams = () => {
-    const params = {};
+  const requestIdRef = useRef(0);
 
-    if (dateFrom) {
-      params.from = dateFrom;
-    }
+  // ==========================================
+  // Fetch Report
+  // ==========================================
 
-    if (dateTo) {
-      params.to = dateTo;
-    }
+  const fetchReport = useCallback(async (type, filters) => {
+    const requestId = ++requestIdRef.current;
 
-    return params;
-  };
-
-  const fetchReport = async () => {
     try {
       setLoading(true);
       setError("");
+      setData(null);
 
-      let response;
+      const params = {};
 
-      const params = getParams();
-
-      if (activeReport === "financial") {
-        response = await reportService.getFinancialReports(params);
-      } else if (activeReport === "loans") {
-        response = await reportService.getLoanReports(params);
-      } else if (activeReport === "payments") {
-        response = await reportService.getPaymentReports(params);
-      } else if (activeReport === "customers") {
-        response = await reportService.getCustomerReports(params);
+      if (filters.from) {
+        params.from = filters.from;
       }
 
-      setData(response?.data || null);
-    } catch (err) {
-      console.error("Reports error:", err);
+      if (filters.to) {
+        params.to = filters.to;
+      }
 
-      setError(
-        err.response?.data?.message || err.message || "Failed to load report.",
-      );
+      const response = await getReportData(type, params);
+
+      // Ignore an outdated response if another
+      // request was started after this one.
+
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      setData(response?.data ?? null);
+    } catch (err) {
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      setError(getErrorMessage(err, "Failed to load report."));
 
       setData(null);
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
+
+  // ==========================================
+  // Fetch on Report / Applied Filter Change
+  // ==========================================
 
   useEffect(() => {
-    fetchReport();
-  }, [activeReport]);
+    fetchReport(activeReport, appliedFilters);
+
+    return () => {
+      // Invalidate any outstanding request when
+      // the component changes or unmounts.
+
+      requestIdRef.current += 1;
+    };
+  }, [activeReport, appliedFilters, fetchReport]);
+
+  // ==========================================
+  // Apply Filters
+  // ==========================================
 
   const handleApplyFilters = () => {
-    fetchReport();
+    setError("");
+
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      setError("From Date cannot be later than To Date.");
+
+      return;
+    }
+
+    const nextFilters = {
+      from: dateFrom,
+      to: dateTo,
+    };
+
+    // If the filters are unchanged, explicitly
+    // refresh the current report.
+
+    if (
+      appliedFilters.from === nextFilters.from &&
+      appliedFilters.to === nextFilters.to
+    ) {
+      fetchReport(activeReport, nextFilters);
+      return;
+    }
+
+    setAppliedFilters(nextFilters);
   };
+
+  // ==========================================
+  // Clear Filters
+  // ==========================================
 
   const handleClearFilters = () => {
     setDateFrom("");
     setDateTo("");
 
-    setTimeout(() => {
-      fetchReport();
-    }, 0);
-  };
+    setError("");
 
-  const formatCurrency = (value) => {
-    const number = Number(value || 0);
+    const emptyFilters = {
+      from: "",
+      to: "",
+    };
 
-    return new Intl.NumberFormat("en-PK", {
-      style: "currency",
-      currency: "PKR",
-      maximumFractionDigits: 2,
-    }).format(number);
-  };
+    // Do not use setTimeout or read the previous
+    // date input state after updating it.
 
-  const formatNumber = (value) => {
-    return new Intl.NumberFormat("en-PK").format(Number(value || 0));
-  };
-
-  const getValue = (obj, keys, fallback = 0) => {
-    if (!obj) return fallback;
-
-    for (const key of keys) {
-      if (obj[key] !== undefined && obj[key] !== null) {
-        return obj[key];
-      }
+    if (!appliedFilters.from && !appliedFilters.to) {
+      fetchReport(activeReport, emptyFilters);
+      return;
     }
 
-    return fallback;
+    setAppliedFilters(emptyFilters);
   };
+
+  // ==========================================
+  // Refresh Report
+  // ==========================================
+
+  const handleRefresh = () => {
+    fetchReport(activeReport, appliedFilters);
+  };
+
+  // ==========================================
+  // Financial Report
+  // ==========================================
 
   const renderFinancialReport = () => {
     if (!data) return null;
@@ -155,7 +298,11 @@ const Reports = () => {
 
     return (
       <div className="space-y-6">
+        {/* Financial Summary Cards */}
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {/* Total Disbursed */}
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -174,6 +321,8 @@ const Reports = () => {
             </div>
           </div>
 
+          {/* Total Collected */}
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -191,6 +340,8 @@ const Reports = () => {
               </div>
             </div>
           </div>
+
+          {/* Outstanding Balance */}
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
@@ -211,13 +362,15 @@ const Reports = () => {
           </div>
         </div>
 
+        {/* Financial Summary Details */}
+
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="text-lg font-semibold text-slate-900">
             Financial Summary
           </h3>
 
           <div className="mt-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <span className="text-sm text-slate-600">Total Disbursed</span>
 
               <span className="font-semibold text-slate-900">
@@ -225,7 +378,7 @@ const Reports = () => {
               </span>
             </div>
 
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <span className="text-sm text-slate-600">
                 Total Payments Collected
               </span>
@@ -235,7 +388,7 @@ const Reports = () => {
               </span>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <span className="text-sm text-slate-600">
                 Outstanding Balance
               </span>
@@ -249,6 +402,10 @@ const Reports = () => {
       </div>
     );
   };
+
+  // ==========================================
+  // Loans Report
+  // ==========================================
 
   const renderLoansReport = () => {
     if (!data) return null;
@@ -277,12 +434,15 @@ const Reports = () => {
                   <th className="px-5 py-3 font-semibold text-slate-600">
                     Loan Number
                   </th>
+
                   <th className="px-5 py-3 font-semibold text-slate-600">
                     Amount
                   </th>
+
                   <th className="px-5 py-3 font-semibold text-slate-600">
                     Status
                   </th>
+
                   <th className="px-5 py-3 font-semibold text-slate-600">
                     Created
                   </th>
@@ -307,9 +467,7 @@ const Reports = () => {
                     </td>
 
                     <td className="px-5 py-4 text-slate-600">
-                      {loan.createdAt
-                        ? new Date(loan.createdAt).toLocaleDateString()
-                        : "-"}
+                      {formatDate(loan.createdAt)}
                     </td>
                   </tr>
                 ))}
@@ -320,6 +478,10 @@ const Reports = () => {
       </div>
     );
   };
+
+  // ==========================================
+  // Payments Report
+  // ==========================================
 
   const renderPaymentsReport = () => {
     if (!data) return null;
@@ -391,9 +553,7 @@ const Reports = () => {
                     </td>
 
                     <td className="px-5 py-4 text-slate-600">
-                      {payment.paymentDate
-                        ? new Date(payment.paymentDate).toLocaleDateString()
-                        : "-"}
+                      {formatDate(payment.paymentDate)}
                     </td>
                   </tr>
                 ))}
@@ -404,6 +564,10 @@ const Reports = () => {
       </div>
     );
   };
+
+  // ==========================================
+  // Customers Report
+  // ==========================================
 
   const renderCustomersReport = () => {
     if (!data) return null;
@@ -481,51 +645,63 @@ const Reports = () => {
     );
   };
 
+  // ==========================================
+  // Report Content
+  // ==========================================
+
   const renderReport = () => {
     if (loading) {
       return (
-        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-          <RefreshCw className="mx-auto h-7 w-7 animate-spin text-blue-600" />
-
-          <p className="mt-3 text-sm text-slate-500">Loading report...</p>
+        <div className="rounded-2xl border border-slate-200 bg-white p-12 shadow-sm">
+          <Loading message="Loading report..." />
         </div>
       );
     }
 
     if (error) {
       return (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
-          <p className="font-medium text-red-700">{error}</p>
-
-          <button
-            type="button"
-            onClick={fetchReport}
-            className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-          >
-            Try Again
-          </button>
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <ErrorMessage message={error} onRetry={handleRefresh} />
         </div>
       );
     }
 
-    if (activeReport === "financial") {
-      return renderFinancialReport();
+    if (!data) {
+      return (
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+          No report data available.
+        </div>
+      );
     }
 
-    if (activeReport === "loans") {
-      return renderLoansReport();
-    }
+    switch (activeReport) {
+      case REPORT_TYPES.FINANCIAL:
+        return renderFinancialReport();
 
-    if (activeReport === "payments") {
-      return renderPaymentsReport();
-    }
+      case REPORT_TYPES.LOANS:
+        return renderLoansReport();
 
-    return renderCustomersReport();
+      case REPORT_TYPES.PAYMENTS:
+        return renderPaymentsReport();
+
+      case REPORT_TYPES.CUSTOMERS:
+        return renderCustomersReport();
+
+      default:
+        return null;
+    }
   };
+
+  // ==========================================
+  // Render
+  // ==========================================
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ======================================
+          Header
+      ====================================== */}
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
@@ -539,7 +715,7 @@ const Reports = () => {
 
         <button
           type="button"
-          onClick={fetchReport}
+          onClick={handleRefresh}
           disabled={loading}
           className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
         >
@@ -548,18 +724,26 @@ const Reports = () => {
         </button>
       </div>
 
-      {/* Report Tabs */}
+      {/* ======================================
+          Report Tabs
+      ====================================== */}
+
       <div className="overflow-x-auto">
-        <div className="flex min-w-max gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+        <div
+          role="tablist"
+          aria-label="Report types"
+          className="flex min-w-max gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm"
+        >
           {reportTabs.map((tab) => {
             const Icon = tab.icon;
-
             const active = activeReport === tab.id;
 
             return (
               <button
                 key={tab.id}
                 type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => setActiveReport(tab.id)}
                 className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
                   active
@@ -568,7 +752,6 @@ const Reports = () => {
                 }`}
               >
                 <Icon className="h-4 w-4" />
-
                 {tab.label}
               </button>
             );
@@ -576,7 +759,10 @@ const Reports = () => {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* ======================================
+          Filters
+      ====================================== */}
+
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center gap-2">
           <FileText className="h-5 w-5 text-slate-500" />
@@ -585,6 +771,8 @@ const Reports = () => {
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          {/* From Date */}
+
           <div>
             <label
               htmlFor="dateFrom"
@@ -597,10 +785,13 @@ const Reports = () => {
               id="dateFrom"
               type="date"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
+              max={dateTo || undefined}
+              onChange={(event) => setDateFrom(event.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </div>
+
+          {/* To Date */}
 
           <div>
             <label
@@ -614,10 +805,13 @@ const Reports = () => {
               id="dateTo"
               type="date"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
+              min={dateFrom || undefined}
+              onChange={(event) => setDateTo(event.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
           </div>
+
+          {/* Filter Actions */}
 
           <div className="flex items-end gap-2">
             <button
@@ -632,7 +826,8 @@ const Reports = () => {
             <button
               type="button"
               onClick={handleClearFilters}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              disabled={loading}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               Clear
             </button>
@@ -640,7 +835,10 @@ const Reports = () => {
         </div>
       </div>
 
-      {/* Report Content */}
+      {/* ======================================
+          Report Content
+      ====================================== */}
+
       {renderReport()}
     </div>
   );

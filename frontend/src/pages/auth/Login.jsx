@@ -1,15 +1,13 @@
 import { useState } from "react";
-
 import { Navigate, useNavigate } from "react-router-dom";
 
 import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
-
 import { useAuth } from "../../context/AuthContext";
+import { getErrorMessage } from "../../utils/error";
 
 const Login = () => {
   const { login, isAuthenticated } = useAuth();
-
   const navigate = useNavigate();
 
   const [form, setForm] = useState({
@@ -18,7 +16,6 @@ const Login = () => {
   });
 
   const [error, setError] = useState("");
-
   const [loading, setLoading] = useState(false);
 
   if (isAuthenticated) {
@@ -26,10 +23,12 @@ const Login = () => {
   }
 
   const handleChange = (event) => {
-    setForm({
-      ...form,
-      [event.target.name]: event.target.value,
-    });
+    const { name, value } = event.target;
+
+    setForm((previousForm) => ({
+      ...previousForm,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async (event) => {
@@ -39,27 +38,15 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const result = await login(form.email.trim(), form.password);
-
-      const role = result.user?.role;
-
-      console.log("Logged in user:", result.user);
-
-      console.log("User role:", role);
+      await login(form.email.trim(), form.password);
 
       navigate("/dashboard", {
         replace: true,
       });
     } catch (error) {
-      console.error("Login error:", error);
-
-      const message =
-        error.response?.data?.message ||
-        error.response?.data?.error?.message ||
-        error.message ||
-        "Login failed. Please check your credentials.";
-
-      setError(message);
+      setError(
+        getErrorMessage(error, "Login failed. Please check your credentials."),
+      );
     } finally {
       setLoading(false);
     }
@@ -68,7 +55,6 @@ const Login = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl sm:p-8">
-        {/* Header */}
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-blue-600 text-xl font-bold text-white">
             LM
@@ -81,26 +67,15 @@ const Login = () => {
           <p className="mt-2 text-sm text-slate-500">Sign in to your account</p>
         </div>
 
-        {/* Error */}
         {error && (
           <div
-            className="
-              mb-5
-              rounded-lg
-              border
-              border-red-200
-              bg-red-50
-              px-4
-              py-3
-              text-sm
-              text-red-700
-            "
+            role="alert"
+            className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
           >
             {error}
           </div>
         )}
 
-        {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
           <Input
             label="Email"
@@ -127,7 +102,6 @@ const Login = () => {
           </Button>
         </form>
 
-        {/* Development information */}
         <div className="mt-6 rounded-lg bg-slate-50 p-3 text-center">
           <p className="text-xs text-slate-500">
             Secure login powered by JWT authentication

@@ -16,71 +16,76 @@ import Users from "./pages/users/Users";
 import Reports from "./pages/reports/Reports";
 import Notifications from "./pages/notifications/Notifications";
 
+// Shared role constants
+import { ADMIN_ROLES, STAFF_ROLES } from "./constants/roles";
+
 const App = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* ================================= */}
-          {/* PUBLIC ROUTES */}
-          {/* ================================= */}
+          {/* =====================================
+              PUBLIC ROUTES
+          ===================================== */}
 
           <Route path="/login" element={<Login />} />
 
-          {/* ================================= */}
-          {/* AUTHENTICATED ROUTES */}
-          {/* ================================= */}
+          {/* =====================================
+              AUTHENTICATED ROUTES
+          ===================================== */}
 
           <Route element={<ProtectedRoute />}>
             <Route element={<MainLayout />}>
               {/* Dashboard */}
+
               <Route path="/dashboard" element={<Dashboard />} />
 
-              {/* ================================= */}
-              {/* STAFF ROUTES */}
-              {/* ================================= */}
+              {/* =================================
+                  STAFF ROUTES
+                  Admin and Loan Officer
+              ================================= */}
 
-              <Route
-                element={<RoleRoute allowedRoles={["admin", "loan_officer"]} />}
-              >
+              <Route element={<RoleRoute allowedRoles={STAFF_ROLES} />}>
                 <Route path="/customers" element={<Customers />} />
 
                 <Route path="/reports" element={<Reports />} />
               </Route>
 
-              {/* ================================= */}
-              {/* LOAN ROUTES */}
-              {/* ================================= */}
+              {/* =================================
+                  LOANS
+              ================================= */}
 
               <Route path="/loans" element={<Loans />} />
 
-              {/* ================================= */}
-              {/* PAYMENT ROUTES */}
-              {/* ================================= */}
+              {/* =================================
+                  PAYMENTS
+              ================================= */}
 
               <Route path="/payments" element={<Payments />} />
 
-              {/* ================================= */}
-              {/* NOTIFICATIONS */}
-              {/* ================================= */}
+              {/* =================================
+                  NOTIFICATIONS
+              ================================= */}
 
               <Route path="/notifications" element={<Notifications />} />
 
-              {/* ================================= */}
-              {/* ADMIN ONLY */}
-              {/* ================================= */}
+              {/* =================================
+                  ADMIN ONLY
+              ================================= */}
 
-              <Route element={<RoleRoute allowedRoles={["admin"]} />}>
+              <Route element={<RoleRoute allowedRoles={ADMIN_ROLES} />}>
                 <Route path="/users" element={<Users />} />
               </Route>
             </Route>
           </Route>
 
-          {/* ================================= */}
-          {/* DEFAULT */}
-          {/* ================================= */}
+          {/* =====================================
+              DEFAULT ROUTES
+          ===================================== */}
 
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+          {/* Unknown URLs */}
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

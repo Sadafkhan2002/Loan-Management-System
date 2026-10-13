@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bell,
   Check,
@@ -9,69 +9,195 @@ import {
 } from "lucide-react";
 
 import notificationService from "../../services/notification.service";
+import Loading from "../../components/common/Loading";
+import ErrorMessage from "../../components/common/ErrorMessage";
+import { getErrorMessage } from "../../utils/error";
+
+// ==========================================
+// Constants
+// ==========================================
+
+const PAGE_LIMIT = 10;
+
+const initialPagination = {
+  totalItems: 0,
+  currentPage: 1,
+  itemsPerPage: PAGE_LIMIT,
+  totalPages: 0,
+};
+
+// ==========================================
+// Helpers
+// ==========================================
+
+const formatDate = (value) => {
+  if (!value) return "-";
+
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString();
+};
+
+const getNotificationIcon = (type) => {
+  switch (type) {
+    case "loan_submitted":
+      return "📝";
+    case "loan_approved":
+      return "✅";
+    case "loan_rejected":
+      return "❌";
+    case "loan_activated":
+      return "🚀";
+    case "payment_received":
+      return "💰";
+    case "loan_completed":
+      return "🎉";
+    default:
+      return "🔔";
+  }
+};
+
+const getNotificationTypeLabel = (type) => {
+  switch (type) {
+    case "loan_submitted":
+      return "Loan Submitted";
+    case "loan_approved":
+      return "Loan Approved";
+    case "loan_rejected":
+      return "Loan Rejected";
+    case "loan_activated":
+      return "Loan Activated";
+    case "payment_received":
+      return "Payment Received";
+    case "loan_completed":
+      return "Loan Completed";
+    case "system":
+      return "System";
+    default:
+      return "Notification";
+  }
+};
+
+// ==========================================
+// Notifications Component
+// ==========================================
 
 const Notifications = () => {
   const [notifications, setNotifications] = useState([]);
 
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
 
-  const [pagination, setPagination] = useState({
-    totalItems: 0,
-    currentPage: 1,
-    itemsPerPage: 10,
-    totalPages: 0,
-  });
+  const [pagination, setPagination] = useState(initialPagination);
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const [processingId, setProcessingId] = useState(null);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const fetchNotifications = useCallback(async () => {
+  // Track the latest list request.
+  const requestIdRef = useRef(0);
+
+  // Prevent duplicate read actions.
+  const actionInProgressRef = useRef(false);
+
+  // ==========================================
+  // Fetch Notifications
+  // ==========================================
+
+  const fetchNotifications = useCallback(async (currentPage) => {
+    const requestId = ++requestIdRef.current;
+
     try {
       setLoading(true);
       setError("");
 
       const response = await notificationService.getNotifications({
-        page,
-        limit,
+        page: currentPage,
+        limit: PAGE_LIMIT,
       });
 
-      setNotifications(response?.data?.notifications || []);
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
 
-      setPagination(
-        response?.data?.pagination || {
-          totalItems: 0,
-          currentPage: page,
-          itemsPerPage: limit,
-          totalPages: 0,
-        },
+      const receivedNotifications = response?.data?.notifications || [];
+
+      const receivedPagination = response?.data?.pagination || {
+        ...initialPagination,
+        currentPage,
+      };
+
+      setNotifications(
+        Array.isArray(receivedNotifications) ? receivedNotifications : [],
       );
+
+      setPagination(receivedPagination);
     } catch (err) {
-      console.error("Get notifications error:", err);
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
 
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to load notifications.",
-      );
+      setNotifications([]);
+
+      setPagination({
+        ...initialPagination,
+        currentPage,
+      });
+
+      setError(getErrorMessage(err, "Failed to load notifications."));
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
-  }, [page, limit]);
+  }, []);
+
+  // ==========================================
+  // Fetch When Page Changes
+  // ==========================================
 
   useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
+    fetchNotifications(page);
+
+    return () => {
+      requestIdRef.current += 1;
+    };
+  }, [page, fetchNotifications]);
+
+  // ==========================================
+  // Unread Count
+  // ==========================================
 
   const unreadCount = notifications.filter(
     (notification) => !notification.isRead,
   ).length;
 
+  // ==========================================
+  // Mark Individual Notification as Read
+  // ==========================================
+
   const handleMarkAsRead = async (id) => {
+    if (actionInProgressRef.current || loading) {
+      return;
+    }
+
+    const selectedNotification = notifications.find(
+      (notification) => notification.id === id,
+    );
+
+    if (!selectedNotification || selectedNotification.isRead) {
+      return;
+    }
+
+    actionInProgressRef.current = true;
+
     try {
       setActionLoading(true);
+      setProcessingId(id);
+
       setError("");
       setSuccess("");
 
@@ -89,30 +215,30 @@ const Notifications = () => {
       );
 
       setSuccess("Notification marked as read.");
-
-      setTimeout(() => {
-        setSuccess("");
-      }, 2500);
     } catch (err) {
-      console.error("Mark notification as read error:", err);
-
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to mark notification as read.",
-      );
+      setError(getErrorMessage(err, "Failed to mark notification as read."));
     } finally {
+      actionInProgressRef.current = false;
       setActionLoading(false);
+      setProcessingId(null);
     }
   };
 
+  // ==========================================
+  // Mark All Notifications as Read
+  // ==========================================
+
   const handleMarkAllAsRead = async () => {
-    if (unreadCount === 0) {
+    if (actionInProgressRef.current || loading || unreadCount === 0) {
       return;
     }
 
+    actionInProgressRef.current = true;
+
     try {
       setActionLoading(true);
+      setProcessingId(null);
+
       setError("");
       setSuccess("");
 
@@ -126,115 +252,85 @@ const Notifications = () => {
       );
 
       setSuccess("All notifications marked as read.");
-
-      setTimeout(() => {
-        setSuccess("");
-      }, 2500);
     } catch (err) {
-      console.error("Mark all notifications error:", err);
-
       setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to mark all notifications as read.",
+        getErrorMessage(err, "Failed to mark all notifications as read."),
       );
     } finally {
+      actionInProgressRef.current = false;
       setActionLoading(false);
+      setProcessingId(null);
     }
   };
+
+  // ==========================================
+  // Refresh
+  // ==========================================
 
   const handleRefresh = () => {
-    fetchNotifications();
-  };
-
-  const formatDate = (date) => {
-    if (!date) {
-      return "-";
+    if (actionInProgressRef.current || loading) {
+      return;
     }
 
-    return new Date(date).toLocaleString();
+    setSuccess("");
+    fetchNotifications(page);
   };
 
-  const getNotificationIcon = (type) => {
-    switch (type) {
-      case "loan_submitted":
-        return "📝";
+  // ==========================================
+  // Pagination
+  // ==========================================
 
-      case "loan_approved":
-        return "✅";
-
-      case "loan_rejected":
-        return "❌";
-
-      case "loan_activated":
-        return "🚀";
-
-      case "payment_received":
-        return "💰";
-
-      case "loan_completed":
-        return "🎉";
-
-      default:
-        return "🔔";
+  const handlePreviousPage = () => {
+    if (loading || actionLoading || page <= 1) {
+      return;
     }
+
+    setSuccess("");
+    setPage((current) => Math.max(1, current - 1));
   };
 
-  const getNotificationTypeLabel = (type) => {
-    switch (type) {
-      case "loan_submitted":
-        return "Loan Submitted";
-
-      case "loan_approved":
-        return "Loan Approved";
-
-      case "loan_rejected":
-        return "Loan Rejected";
-
-      case "loan_activated":
-        return "Loan Activated";
-
-      case "payment_received":
-        return "Payment Received";
-
-      case "loan_completed":
-        return "Loan Completed";
-
-      case "system":
-        return "System";
-
-      default:
-        return "Notification";
+  const handleNextPage = () => {
+    if (loading || actionLoading || page >= pagination.totalPages) {
+      return;
     }
+
+    setSuccess("");
+
+    setPage((current) => Math.min(pagination.totalPages, current + 1));
   };
+
+  // ==========================================
+  // Render
+  // ==========================================
 
   return (
     <div className="space-y-6">
       {/* Header */}
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl bg-blue-50 p-3">
-              <Bell className="h-6 w-6 text-blue-600" />
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-blue-50 p-3">
+            <Bell className="h-6 w-6 text-blue-600" />
+          </div>
 
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                Notifications
-              </h1>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+              Notifications
+            </h1>
 
-              <p className="mt-1 text-sm text-slate-500">
-                View and manage your notifications.
-              </p>
-            </div>
+            <p className="mt-1 text-sm text-slate-500">
+              View and manage your notifications.
+            </p>
           </div>
         </div>
+
+        {/* Header Actions */}
 
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={handleRefresh}
-            disabled={loading}
+            disabled={loading || actionLoading}
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
@@ -244,18 +340,22 @@ const Notifications = () => {
           <button
             type="button"
             onClick={handleMarkAllAsRead}
-            disabled={actionLoading || unreadCount === 0}
+            disabled={loading || actionLoading || unreadCount === 0}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <CheckCheck className="h-4 w-4" />
-            Mark All Read
+
+            {actionLoading && processingId === null
+              ? "Updating..."
+              : "Mark All Read"}
           </button>
         </div>
       </div>
 
       {/* Unread Summary */}
+
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-medium text-slate-500">
               Unread on this page
@@ -272,39 +372,35 @@ const Notifications = () => {
         </div>
       </div>
 
-      {/* Success */}
+      {/* Success Message */}
+
       {success && (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+        <div
+          role="status"
+          className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700"
+        >
           {success}
         </div>
       )}
 
-      {/* Error */}
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3">
-          <p className="text-sm font-medium text-red-700">{error}</p>
+      {/* Error Message */}
 
-          <button
-            type="button"
-            onClick={handleRefresh}
-            className="mt-3 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-          >
-            Try Again
-          </button>
-        </div>
+      {error && (
+        <ErrorMessage
+          message={error}
+          onRetry={!loading && !actionLoading ? handleRefresh : undefined}
+        />
       )}
 
-      {/* Notifications */}
+      {/* Notification List */}
+
       <div className="space-y-3">
         {loading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-            <RefreshCw className="mx-auto h-7 w-7 animate-spin text-blue-600" />
-
-            <p className="mt-3 text-sm text-slate-500">
-              Loading notifications...
-            </p>
+          <div className="rounded-2xl border border-slate-200 bg-white p-12 shadow-sm">
+            <Loading message="Loading notifications..." />
           </div>
-        ) : notifications.length === 0 ? (
+        ) : error &&
+          notifications.length === 0 ? null : notifications.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
               <Bell className="h-7 w-7 text-slate-400" />
@@ -322,15 +418,17 @@ const Notifications = () => {
           notifications.map((notification) => (
             <div
               key={notification.id}
-              className={`rounded-2xl border bg-white p-4 shadow-sm transition sm:p-5 ${
+              className={`rounded-2xl border p-4 shadow-sm transition sm:p-5 ${
                 notification.isRead
-                  ? "border-slate-200"
+                  ? "border-slate-200 bg-white"
                   : "border-blue-200 bg-blue-50/30"
               }`}
             >
               <div className="flex items-start gap-4">
                 {/* Icon */}
+
                 <div
+                  aria-hidden="true"
                   className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-lg ${
                     notification.isRead ? "bg-slate-100" : "bg-blue-100"
                   }`}
@@ -339,6 +437,7 @@ const Notifications = () => {
                 </div>
 
                 {/* Content */}
+
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div>
@@ -371,19 +470,27 @@ const Notifications = () => {
                     </span>
                   </div>
 
-                  <p className="mt-3 text-sm leading-6 text-slate-600">
-                    {notification.message}
+                  {/* Message */}
+
+                  <p className="mt-3 whitespace-pre-wrap wrap-break-word text-sm leading-6 text-slate-600">
+                    {notification.message || "-"}
                   </p>
+
+                  {/* Mark as Read */}
 
                   {!notification.isRead && (
                     <button
                       type="button"
                       onClick={() => handleMarkAsRead(notification.id)}
-                      disabled={actionLoading}
-                      className="mt-4 inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                      disabled={actionLoading || loading}
+                      className="mt-4 inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label={`Mark notification ${notification.id} as read`}
                     >
                       <Check className="h-4 w-4" />
-                      Mark as read
+
+                      {processingId === notification.id
+                        ? "Updating..."
+                        : "Mark as read"}
                     </button>
                   )}
                 </div>
@@ -394,6 +501,7 @@ const Notifications = () => {
       </div>
 
       {/* Pagination */}
+
       {!loading && notifications.length > 0 && pagination.totalPages > 1 && (
         <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
@@ -403,9 +511,10 @@ const Notifications = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
-              disabled={page <= 1 || loading}
+              onClick={handlePreviousPage}
+              disabled={page <= 1 || loading || actionLoading}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Previous notifications page"
             >
               <ChevronLeft className="h-4 w-4" />
               Previous
@@ -413,13 +522,12 @@ const Notifications = () => {
 
             <button
               type="button"
-              onClick={() =>
-                setPage((current) =>
-                  Math.min(pagination.totalPages, current + 1),
-                )
+              onClick={handleNextPage}
+              disabled={
+                page >= pagination.totalPages || loading || actionLoading
               }
-              disabled={page >= pagination.totalPages || loading}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Next notifications page"
             >
               Next
               <ChevronRight className="h-4 w-4" />

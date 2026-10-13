@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
 import {
   Activity,
   CheckCircle,
@@ -6,7 +7,7 @@ import {
   CreditCard,
   DollarSign,
   FileCheck,
-  FileX,
+  RefreshCw,
   Users,
   Wallet,
   XCircle,
@@ -14,17 +15,65 @@ import {
 
 import dashboardService from "../../services/dashboard.service";
 
+import Loading from "../../components/common/Loading";
+import ErrorMessage from "../../components/common/ErrorMessage";
+
+import { getErrorMessage } from "../../utils/error";
+
+// ==========================================
+// Formatting Helpers
+// ==========================================
+
+const formatCurrency = (value) => {
+  const amount = Number(value ?? 0);
+
+  return `Rs. ${(Number.isFinite(amount) ? amount : 0).toLocaleString("en-PK", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+const formatNumber = (value) => {
+  const number = Number(value ?? 0);
+
+  return (Number.isFinite(number) ? number : 0).toLocaleString("en-PK");
+};
+
+// ==========================================
+// Dashboard Component
+// ==========================================
+
 const Dashboard = () => {
+  // ==========================================
+  // State
+  // ==========================================
+
   const [statistics, setStatistics] = useState(null);
+
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState("");
 
-  const fetchStatistics = async () => {
+  // Prevent outdated requests from updating state.
+  const requestIdRef = useRef(0);
+
+  // ==========================================
+  // Fetch Dashboard Statistics
+  // ==========================================
+
+  const fetchStatistics = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
+
     try {
       setLoading(true);
       setError("");
 
       const response = await dashboardService.getStatistics();
+
+      // Ignore an outdated API response.
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
 
       if (!response?.success || !response?.data) {
         throw new Error(
@@ -33,96 +82,55 @@ const Dashboard = () => {
       }
 
       setStatistics(response.data);
-    } catch (error) {
-      console.error("Dashboard statistics error:", error);
+    } catch (err) {
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
 
-      const message =
-        error.response?.data?.message ||
-        error.message ||
-        "Unable to load dashboard statistics.";
+      setStatistics(null);
 
-      setError(message);
+      setError(getErrorMessage(err, "Unable to load dashboard statistics."));
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
+
+  // ==========================================
+  // Initial Data Loading
+  // ==========================================
 
   useEffect(() => {
     fetchStatistics();
-  }, []);
 
-  const formatCurrency = (value) => {
-    const amount = Number(value || 0);
+    return () => {
+      requestIdRef.current += 1;
+    };
+  }, [fetchStatistics]);
 
-    return `Rs. ${amount.toLocaleString("en-PK", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })}`;
+  // ==========================================
+  // Refresh
+  // ==========================================
+
+  const handleRefresh = () => {
+    fetchStatistics();
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Loading dashboard statistics...
-          </p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[1, 2, 3, 4].map((item) => (
-            <div
-              key={item}
-              className="h-32 animate-pulse rounded-xl border border-slate-200 bg-white"
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Overview of your loan management system.
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-red-200 bg-red-50 p-5">
-          <h2 className="font-semibold text-red-800">
-            Unable to load dashboard
-          </h2>
-
-          <p className="mt-1 text-sm text-red-700">{error}</p>
-
-          <button
-            type="button"
-            onClick={fetchStatistics}
-            className="mt-4 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // ==========================================
+  // Main Statistics Cards
+  // ==========================================
 
   const cards = [
     {
       title: "Total Customers",
-      value: statistics?.customers?.total ?? 0,
+      value: formatNumber(statistics?.customers?.total),
       icon: Users,
       description: "Registered customers",
     },
     {
       title: "Total Loans",
-      value: statistics?.loans?.total ?? 0,
+      value: formatNumber(statistics?.loans?.total),
       icon: CreditCard,
       description: "All loan applications",
     },
@@ -140,56 +148,123 @@ const Dashboard = () => {
     },
   ];
 
+  // ==========================================
+  // Loan Status Cards
+  // ==========================================
+
   const loanStatuses = [
     {
       title: "Pending",
-      value: statistics?.loans?.pending ?? 0,
+      value: formatNumber(statistics?.loans?.pending),
       icon: Clock,
     },
     {
       title: "Approved",
-      value: statistics?.loans?.approved ?? 0,
+      value: formatNumber(statistics?.loans?.approved),
       icon: FileCheck,
     },
     {
       title: "Active",
-      value: statistics?.loans?.active ?? 0,
+      value: formatNumber(statistics?.loans?.active),
       icon: Activity,
     },
     {
       title: "Rejected",
-      value: statistics?.loans?.rejected ?? 0,
+      value: formatNumber(statistics?.loans?.rejected),
       icon: XCircle,
     },
     {
       title: "Completed",
-      value: statistics?.loans?.completed ?? 0,
+      value: formatNumber(statistics?.loans?.completed),
       icon: CheckCircle,
     },
   ];
 
+  // ==========================================
+  // Shared Header
+  // ==========================================
+
+  const renderHeader = () => (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+
+        <p className="mt-1 text-sm text-slate-500">
+          Overview of your loan management system.
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleRefresh}
+        disabled={loading}
+        className="inline-flex w-fit items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+        Refresh
+      </button>
+    </div>
+  );
+
+  // ==========================================
+  // Loading State
+  // ==========================================
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        {renderHeader()}
+
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <Loading message="Loading dashboard statistics..." />
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[1, 2, 3, 4].map((item) => (
+            <div
+              key={item}
+              className="h-32 animate-pulse rounded-xl border border-slate-200 bg-white"
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // Error State
+  // ==========================================
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        {renderHeader()}
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 font-semibold text-slate-900">
+            Unable to load dashboard
+          </h2>
+
+          <ErrorMessage message={error} onRetry={handleRefresh} />
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // Dashboard Content
+  // ==========================================
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
 
-          <p className="mt-1 text-sm text-slate-500">
-            Overview of your loan management system.
-          </p>
-        </div>
+      {renderHeader()}
 
-        <button
-          type="button"
-          onClick={fetchStatistics}
-          className="inline-flex w-fit items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-        >
-          Refresh
-        </button>
-      </div>
+      {/* ======================================
+          Main Statistics
+      ====================================== */}
 
-      {/* Main Statistics */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => {
           const Icon = card.icon;
@@ -203,7 +278,7 @@ const Dashboard = () => {
                 <div className="min-w-0">
                   <p className="text-sm text-slate-500">{card.title}</p>
 
-                  <p className="mt-2 break-words text-2xl font-bold text-slate-900">
+                  <p className="mt-2 wrap-break-word text-2xl font-bold text-slate-900">
                     {card.value}
                   </p>
 
@@ -221,7 +296,10 @@ const Dashboard = () => {
         })}
       </div>
 
-      {/* Loan Status */}
+      {/* ======================================
+          Loan Status
+      ====================================== */}
+
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-5">
           <h2 className="text-lg font-semibold text-slate-900">Loan Status</h2>
@@ -255,7 +333,10 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Financial Summary */}
+      {/* ======================================
+          Financial Summary
+      ====================================== */}
+
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
         <div className="mb-5">
           <h2 className="text-lg font-semibold text-slate-900">
@@ -268,26 +349,32 @@ const Dashboard = () => {
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
+          {/* Total Disbursed */}
+
           <div className="rounded-lg bg-slate-50 p-4">
             <p className="text-sm text-slate-500">Total Disbursed</p>
 
-            <p className="mt-2 text-xl font-bold text-slate-900">
+            <p className="mt-2 wrap-break-word text-xl font-bold text-slate-900">
               {formatCurrency(statistics?.financial?.totalDisbursedAmount)}
             </p>
           </div>
 
+          {/* Total Collected */}
+
           <div className="rounded-lg bg-slate-50 p-4">
             <p className="text-sm text-slate-500">Total Collected</p>
 
-            <p className="mt-2 text-xl font-bold text-slate-900">
+            <p className="mt-2 wrap-break-word text-xl font-bold text-slate-900">
               {formatCurrency(statistics?.financial?.totalCollectedPayments)}
             </p>
           </div>
 
+          {/* Outstanding Balance */}
+
           <div className="rounded-lg bg-slate-50 p-4">
             <p className="text-sm text-slate-500">Outstanding Balance</p>
 
-            <p className="mt-2 text-xl font-bold text-slate-900">
+            <p className="mt-2 wrap-break-word text-xl font-bold text-slate-900">
               {formatCurrency(statistics?.financial?.outstandingBalance)}
             </p>
           </div>

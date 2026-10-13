@@ -1,16 +1,14 @@
 import { Navigate, Outlet } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext";
+import Loading from "../components/common/Loading";
+import { ROLES } from "../constants/roles";
 
 const RoleRoute = ({ allowedRoles = [] }) => {
   const { user, loading, isAuthenticated } = useAuth();
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-slate-600">Loading...</p>
-      </div>
-    );
+    return <Loading message="Checking authentication..." />;
   }
 
   if (!isAuthenticated) {
@@ -18,7 +16,14 @@ const RoleRoute = ({ allowedRoles = [] }) => {
   }
 
   if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role)) {
-    return <Navigate to="/dashboard" replace />;
+    // Send unauthorized users to their dashboard.
+    // If the user has an unknown role, send them to login.
+    const knownRoles = Object.values(ROLES);
+    const destination = knownRoles.includes(user?.role)
+      ? "/dashboard"
+      : "/login";
+
+    return <Navigate to={destination} replace />;
   }
 
   return <Outlet />;

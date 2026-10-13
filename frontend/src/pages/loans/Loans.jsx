@@ -13,9 +13,19 @@ import {
 
 import loanService from "../../services/loan.service";
 import customerService from "../../services/customer.service";
+
 import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
+import Loading from "../../components/common/Loading";
+import ErrorMessage from "../../components/common/ErrorMessage";
+
 import { useAuth } from "../../context/AuthContext";
+import { ROLES } from "../../constants/roles";
+import { getErrorMessage } from "../../utils/error";
+
+// ==========================================
+// Initial Form
+// ==========================================
 
 const initialForm = {
   customerId: "",
@@ -25,8 +35,19 @@ const initialForm = {
   purpose: "",
 };
 
+const initialPagination = {
+  totalItems: 0,
+  currentPage: 1,
+  itemsPerPage: 10,
+  totalPages: 0,
+};
+
 const Loans = () => {
   const { user } = useAuth();
+
+  // ==========================================
+  // State
+  // ==========================================
 
   const [loans, setLoans] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -41,12 +62,8 @@ const Loans = () => {
   const [status, setStatus] = useState("");
 
   const [page, setPage] = useState(1);
-  const [pagination, setPagination] = useState({
-    totalItems: 0,
-    currentPage: 1,
-    itemsPerPage: 10,
-    totalPages: 0,
-  });
+
+  const [pagination, setPagination] = useState(initialPagination);
 
   const [showModal, setShowModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
@@ -55,12 +72,16 @@ const Loans = () => {
   const [selectedLoan, setSelectedLoan] = useState(null);
 
   const [form, setForm] = useState(initialForm);
+
   const [submitting, setSubmitting] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
-  const isStaff = user?.role === "admin" || user?.role === "loan_officer";
+  // ==========================================
+  // Role Permissions
+  // ==========================================
 
-  const isAdmin = user?.role === "admin";
+  const isStaff =
+    user?.role === ROLES.ADMIN || user?.role === ROLES.LOAN_OFFICER;
 
   // ==========================================
   // Fetch Loans
@@ -80,18 +101,9 @@ const Loans = () => {
 
       setLoans(response.data?.loans || []);
 
-      setPagination(
-        response.data?.pagination || {
-          totalItems: 0,
-          currentPage: 1,
-          itemsPerPage: 10,
-          totalPages: 0,
-        },
-      );
+      setPagination(response.data?.pagination || initialPagination);
     } catch (error) {
-      console.error("Fetch loans error:", error);
-
-      setError(error.response?.data?.message || "Failed to load loans.");
+      setError(getErrorMessage(error, "Failed to load loans."));
     } finally {
       setLoading(false);
     }
@@ -114,11 +126,15 @@ const Loans = () => {
 
       setCustomers(response.data?.customers || []);
     } catch (error) {
-      console.error("Fetch customers error:", error);
+      setError(getErrorMessage(error, "Failed to load customers."));
     } finally {
       setCustomersLoading(false);
     }
   };
+
+  // ==========================================
+  // Effects
+  // ==========================================
 
   useEffect(() => {
     fetchLoans();
@@ -135,8 +151,11 @@ const Loans = () => {
   const handleSearch = (event) => {
     event.preventDefault();
 
-    setPage(1);
-    fetchLoans();
+    if (page !== 1) {
+      setPage(1);
+    } else {
+      fetchLoans();
+    }
   };
 
   // ==========================================
@@ -144,10 +163,12 @@ const Loans = () => {
   // ==========================================
 
   const handleChange = (event) => {
-    setForm({
-      ...form,
-      [event.target.name]: event.target.value,
-    });
+    const { name, value } = event.target;
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
   };
 
   // ==========================================
@@ -157,8 +178,10 @@ const Loans = () => {
   const openCreateModal = () => {
     setEditingLoan(null);
     setForm(initialForm);
+
     setError("");
     setSuccess("");
+
     setShowModal(true);
   };
 
@@ -179,6 +202,7 @@ const Loans = () => {
 
     setError("");
     setSuccess("");
+
     setShowModal(true);
   };
 
@@ -203,6 +227,7 @@ const Loans = () => {
 
     try {
       setSubmitting(true);
+
       setError("");
       setSuccess("");
 
@@ -224,24 +249,29 @@ const Loans = () => {
         setSuccess("Loan application created successfully.");
       }
 
-      closeModal();
+      // Close directly after successful submission.
+      // closeModal() is intentionally blocked while submitting.
+
+      setShowModal(false);
+      setEditingLoan(null);
+      setForm(initialForm);
+
       await fetchLoans();
     } catch (error) {
-      console.error("Submit loan error:", error);
-
-      setError(error.response?.data?.message || "Failed to save loan.");
+      setError(getErrorMessage(error, "Failed to save loan."));
     } finally {
       setSubmitting(false);
     }
   };
 
   // ==========================================
-  // Loan Action
+  // Loan Actions
   // ==========================================
 
   const handleLoanAction = async (action, loan) => {
     try {
       setActionLoading(true);
+
       setError("");
       setSuccess("");
 
@@ -265,16 +295,14 @@ const Loans = () => {
 
       await fetchLoans();
     } catch (error) {
-      console.error("Loan action error:", error);
-
-      setError(error.response?.data?.message || "Loan action failed.");
+      setError(getErrorMessage(error, "Loan action failed."));
     } finally {
       setActionLoading(false);
     }
   };
 
   // ==========================================
-  // View Details
+  // View Loan Details
   // ==========================================
 
   const handleViewDetails = async (loan) => {
@@ -287,9 +315,7 @@ const Loans = () => {
 
       setShowDetails(true);
     } catch (error) {
-      console.error("Get loan details error:", error);
-
-      setError(error.response?.data?.message || "Failed to load loan details.");
+      setError(getErrorMessage(error, "Failed to load loan details."));
     }
   };
 
@@ -337,7 +363,9 @@ const Loans = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ======================================
+          Header
+      ====================================== */}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -354,21 +382,24 @@ const Loans = () => {
         </Button>
       </div>
 
-      {/* Messages */}
+      {/* ======================================
+          Messages
+      ====================================== */}
 
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
+      {error && <ErrorMessage message={error} />}
 
       {success && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div
+          role="status"
+          className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700"
+        >
           {success}
         </div>
       )}
 
-      {/* Search / Filter */}
+      {/* ======================================
+          Search / Filter
+      ====================================== */}
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <form
@@ -396,15 +427,10 @@ const Loans = () => {
             className="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option value="">All Statuses</option>
-
             <option value="pending">Pending</option>
-
             <option value="approved">Approved</option>
-
             <option value="active">Active</option>
-
             <option value="rejected">Rejected</option>
-
             <option value="completed">Completed</option>
           </select>
 
@@ -417,12 +443,14 @@ const Loans = () => {
         </form>
       </div>
 
-      {/* Desktop Table */}
+      {/* ======================================
+          Desktop Table
+      ====================================== */}
 
       <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:block">
         {loading ? (
-          <div className="p-10 text-center text-slate-500">
-            Loading loans...
+          <div className="p-10">
+            <Loading message="Loading loans..." />
           </div>
         ) : loans.length === 0 ? (
           <div className="p-10 text-center text-slate-500">No loans found.</div>
@@ -494,52 +522,70 @@ const Loans = () => {
 
                     <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">
+                        {/* View */}
+
                         <button
+                          type="button"
                           onClick={() => handleViewDetails(loan)}
                           className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                           title="View"
+                          aria-label="View loan details"
                         >
                           <Eye className="h-4 w-4" />
                         </button>
 
+                        {/* Edit Pending Loan */}
+
                         {isStaff && loan.status === "pending" && (
                           <button
+                            type="button"
                             onClick={() => openEditModal(loan)}
                             className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
                             title="Edit"
+                            aria-label="Edit loan"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
                         )}
 
+                        {/* Approve / Reject */}
+
                         {isStaff && loan.status === "pending" && (
                           <>
                             <button
+                              type="button"
                               disabled={actionLoading}
                               onClick={() => handleLoanAction("approve", loan)}
                               className="rounded-lg p-2 text-green-600 hover:bg-green-50 disabled:opacity-50"
                               title="Approve"
+                              aria-label="Approve loan"
                             >
                               <Check className="h-4 w-4" />
                             </button>
 
                             <button
+                              type="button"
                               disabled={actionLoading}
                               onClick={() => handleLoanAction("reject", loan)}
                               className="rounded-lg p-2 text-red-600 hover:bg-red-50 disabled:opacity-50"
                               title="Reject"
+                              aria-label="Reject loan"
                             >
                               <XCircle className="h-4 w-4" />
                             </button>
                           </>
                         )}
 
+                        {/* Activate */}
+
                         {isStaff && loan.status === "approved" && (
                           <button
+                            type="button"
                             disabled={actionLoading}
                             onClick={() => handleLoanAction("activate", loan)}
                             className="rounded-lg p-2 text-green-600 hover:bg-green-50 disabled:opacity-50"
                             title="Activate"
+                            aria-label="Activate loan"
                           >
                             <Check className="h-4 w-4" />
                           </button>
@@ -554,12 +600,14 @@ const Loans = () => {
         )}
       </div>
 
-      {/* Mobile Cards */}
+      {/* ======================================
+          Mobile Cards
+      ====================================== */}
 
       <div className="space-y-4 lg:hidden">
         {loading ? (
-          <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm">
-            Loading loans...
+          <div className="rounded-xl bg-white p-8 shadow-sm">
+            <Loading message="Loading loans..." />
           </div>
         ) : loans.length === 0 ? (
           <div className="rounded-xl bg-white p-8 text-center text-slate-500 shadow-sm">
@@ -590,6 +638,8 @@ const Loans = () => {
                   {loan.status}
                 </span>
               </div>
+
+              {/* Loan Information */}
 
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div>
@@ -625,8 +675,11 @@ const Loans = () => {
                 </div>
               </div>
 
+              {/* Mobile Actions */}
+
               <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
                 <button
+                  type="button"
                   onClick={() => handleViewDetails(loan)}
                   className="inline-flex items-center rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"
                 >
@@ -637,6 +690,7 @@ const Loans = () => {
                 {isStaff && loan.status === "pending" && (
                   <>
                     <button
+                      type="button"
                       onClick={() => openEditModal(loan)}
                       className="inline-flex items-center rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700"
                     >
@@ -645,18 +699,20 @@ const Loans = () => {
                     </button>
 
                     <button
+                      type="button"
                       disabled={actionLoading}
                       onClick={() => handleLoanAction("approve", loan)}
-                      className="inline-flex items-center rounded-lg bg-green-50 px-3 py-2 text-xs font-semibold text-green-700"
+                      className="inline-flex items-center rounded-lg bg-green-50 px-3 py-2 text-xs font-semibold text-green-700 disabled:opacity-50"
                     >
                       <Check className="mr-1.5 h-3.5 w-3.5" />
                       Approve
                     </button>
 
                     <button
+                      type="button"
                       disabled={actionLoading}
                       onClick={() => handleLoanAction("reject", loan)}
-                      className="inline-flex items-center rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700"
+                      className="inline-flex items-center rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"
                     >
                       <XCircle className="mr-1.5 h-3.5 w-3.5" />
                       Reject
@@ -666,9 +722,10 @@ const Loans = () => {
 
                 {isStaff && loan.status === "approved" && (
                   <button
+                    type="button"
                     disabled={actionLoading}
                     onClick={() => handleLoanAction("activate", loan)}
-                    className="inline-flex items-center rounded-lg bg-green-50 px-3 py-2 text-xs font-semibold text-green-700"
+                    className="inline-flex items-center rounded-lg bg-green-50 px-3 py-2 text-xs font-semibold text-green-700 disabled:opacity-50"
                   >
                     <Check className="mr-1.5 h-3.5 w-3.5" />
                     Activate
@@ -680,7 +737,9 @@ const Loans = () => {
         )}
       </div>
 
-      {/* Pagination */}
+      {/* ======================================
+          Pagination
+      ====================================== */}
 
       {!loading && pagination.totalPages > 0 && (
         <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -691,19 +750,23 @@ const Loans = () => {
 
           <div className="flex gap-2">
             <button
+              type="button"
               disabled={page <= 1}
               onClick={() => setPage((value) => Math.max(1, value - 1))}
               className="rounded-lg border border-slate-300 p-2 disabled:opacity-40"
+              aria-label="Previous page"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
 
             <button
+              type="button"
               disabled={page >= pagination.totalPages}
               onClick={() =>
                 setPage((value) => Math.min(pagination.totalPages, value + 1))
               }
               className="rounded-lg border border-slate-300 p-2 disabled:opacity-40"
+              aria-label="Next page"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -711,11 +774,15 @@ const Loans = () => {
         </div>
       )}
 
-      {/* Create/Edit Modal */}
+      {/* ======================================
+          Create / Edit Modal
+      ====================================== */}
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            {/* Modal Header */}
+
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
@@ -728,14 +795,21 @@ const Loans = () => {
               </div>
 
               <button
+                type="button"
                 onClick={closeModal}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                disabled={submitting}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+                aria-label="Close modal"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
+            {/* Loan Form */}
+
             <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Customer */}
+
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Customer
@@ -762,6 +836,8 @@ const Loans = () => {
                   ))}
                 </select>
               </div>
+
+              {/* Form Fields */}
 
               <div className="grid gap-5 sm:grid-cols-2">
                 <Input
@@ -805,11 +881,14 @@ const Loans = () => {
                 />
               </div>
 
+              {/* Modal Buttons */}
+
               <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={closeModal}
-                  className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  disabled={submitting}
+                  className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -827,11 +906,15 @@ const Loans = () => {
         </div>
       )}
 
-      {/* Details Modal */}
+      {/* ======================================
+          Loan Details Modal
+      ====================================== */}
 
       {showDetails && selectedLoan && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            {/* Details Header */}
+
             <div className="mb-6 flex items-start justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-900">
@@ -844,14 +927,20 @@ const Loans = () => {
               </div>
 
               <button
+                type="button"
                 onClick={() => setShowDetails(false)}
                 className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                aria-label="Close loan details"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
+            {/* Details Grid */}
+
             <div className="grid gap-4 sm:grid-cols-2">
+              {/* Customer */}
+
               <div className="rounded-lg bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Customer</p>
 
@@ -859,6 +948,8 @@ const Loans = () => {
                   {getCustomerName(selectedLoan)}
                 </p>
               </div>
+
+              {/* Status */}
 
               <div className="rounded-lg bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Status</p>
@@ -872,6 +963,8 @@ const Loans = () => {
                 </span>
               </div>
 
+              {/* Amount */}
+
               <div className="rounded-lg bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Amount</p>
 
@@ -879,6 +972,8 @@ const Loans = () => {
                   {formatCurrency(selectedLoan.amount)}
                 </p>
               </div>
+
+              {/* Interest Rate */}
 
               <div className="rounded-lg bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Interest Rate</p>
@@ -888,6 +983,8 @@ const Loans = () => {
                 </p>
               </div>
 
+              {/* Duration */}
+
               <div className="rounded-lg bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Duration</p>
 
@@ -895,6 +992,8 @@ const Loans = () => {
                   {selectedLoan.durationMonths} months
                 </p>
               </div>
+
+              {/* Monthly Installment */}
 
               <div className="rounded-lg bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Monthly Installment</p>
@@ -904,6 +1003,8 @@ const Loans = () => {
                 </p>
               </div>
 
+              {/* Total Payable */}
+
               <div className="rounded-lg bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Total Payable</p>
 
@@ -912,6 +1013,8 @@ const Loans = () => {
                 </p>
               </div>
 
+              {/* Paid Amount */}
+
               <div className="rounded-lg bg-slate-50 p-4">
                 <p className="text-xs text-slate-500">Paid Amount</p>
 
@@ -919,6 +1022,8 @@ const Loans = () => {
                   {formatCurrency(selectedLoan.paidAmount)}
                 </p>
               </div>
+
+              {/* Remaining Amount */}
 
               <div className="rounded-lg bg-slate-50 p-4 sm:col-span-2">
                 <p className="text-xs text-slate-500">Remaining Amount</p>
@@ -929,8 +1034,11 @@ const Loans = () => {
               </div>
             </div>
 
+            {/* Details Footer */}
+
             <div className="mt-6 flex justify-end">
               <button
+                type="button"
                 onClick={() => setShowDetails(false)}
                 className="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >

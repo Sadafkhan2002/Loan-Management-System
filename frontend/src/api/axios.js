@@ -20,9 +20,7 @@ api.interceptors.request.use(
 
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error),
 );
 
 api.interceptors.response.use(
@@ -32,10 +30,12 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+
+      window.dispatchEvent(new Event("auth:logout"));
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

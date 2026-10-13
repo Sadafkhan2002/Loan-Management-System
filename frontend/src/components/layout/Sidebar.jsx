@@ -4,7 +4,6 @@ import {
   BarChart3,
   Bell,
   CreditCard,
-  FileText,
   LayoutDashboard,
   LogOut,
   Users,
@@ -13,82 +12,134 @@ import {
 
 import { useAuth } from "../../context/AuthContext";
 
+import { ROLES, STAFF_ROLES, ADMIN_ROLES } from "../../constants/roles";
+
+// ==========================================
+// Navigation Configuration
+// ==========================================
+
+const ALL_ROLES = [ROLES.ADMIN, ROLES.LOAN_OFFICER, ROLES.CUSTOMER];
+
+const navigation = [
+  {
+    label: "Dashboard",
+    path: "/dashboard",
+    icon: LayoutDashboard,
+    roles: ALL_ROLES,
+  },
+  {
+    label: "Customers",
+    path: "/customers",
+    icon: Users,
+    roles: STAFF_ROLES,
+  },
+  {
+    label: "Loans",
+    path: "/loans",
+    icon: CreditCard,
+    roles: ALL_ROLES,
+  },
+  {
+    label: "Payments",
+    path: "/payments",
+    icon: CreditCard,
+    roles: ALL_ROLES,
+  },
+  {
+    label: "Users",
+    path: "/users",
+    icon: Users,
+    roles: ADMIN_ROLES,
+  },
+  {
+    label: "Reports",
+    path: "/reports",
+    icon: BarChart3,
+    roles: STAFF_ROLES,
+  },
+  {
+    label: "Notifications",
+    path: "/notifications",
+    icon: Bell,
+    roles: ALL_ROLES,
+  },
+];
+
+// ==========================================
+// Helper
+// ==========================================
+
+const formatRole = (role) => {
+  if (!role) return "User";
+
+  return role
+    .replace(/_/g, " ")
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
+// ==========================================
+// Sidebar Component
+// ==========================================
+
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
+
   const navigate = useNavigate();
+
+  // ========================================
+  // Logout
+  // ========================================
 
   const handleLogout = () => {
     logout();
+
     onClose();
-    navigate("/login");
+
+    navigate("/login", {
+      replace: true,
+    });
   };
 
-  const navigation = [
-    {
-      label: "Dashboard",
-      path: "/dashboard",
-      icon: LayoutDashboard,
-      roles: ["admin", "loan_officer", "customer"],
-    },
-    {
-      label: "Customers",
-      path: "/customers",
-      icon: Users,
-      roles: ["admin", "loan_officer"],
-    },
-    {
-      label: "Loans",
-      path: "/loans",
-      icon: CreditCard,
-      roles: ["admin", "loan_officer", "customer"],
-    },
-    {
-      label: "Payments",
-      path: "/payments",
-      icon: CreditCard,
-      roles: ["admin", "loan_officer", "customer"],
-    },
-    {
-      label: "Users",
-      path: "/users",
-      icon: Users,
-      roles: ["admin"],
-    },
-    {
-      label: "Reports",
-      path: "/reports",
-      icon: BarChart3,
-      roles: ["admin", "loan_officer"],
-    },
-    {
-      label: "Notifications",
-      path: "/notifications",
-      icon: Bell,
-      roles: ["admin", "loan_officer", "customer"],
-    },
-  ];
+  // ========================================
+  // Filter Navigation by Role
+  // ========================================
 
   const visibleNavigation = navigation.filter((item) =>
     item.roles.includes(user?.role),
   );
 
+  // ========================================
+  // Render
+  // ========================================
+
   return (
     <>
+      {/* Mobile Backdrop */}
+
       {isOpen && (
         <button
           type="button"
-          aria-label="Close sidebar"
+          aria-label="Close navigation menu"
           onClick={onClose}
           className="fixed inset-0 z-40 bg-slate-900/50 lg:hidden"
         />
       )}
 
+      {/* Sidebar */}
+
       <aside
+        id="main-sidebar"
+        aria-label="Main sidebar"
         className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-slate-200 bg-white transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        {/* Logo */}
+        {/* ====================================
+            Logo
+        ==================================== */}
+
         <div className="flex h-16 items-center justify-between border-b border-slate-200 px-5">
           <div>
             <h1 className="text-lg font-bold text-slate-900">
@@ -101,13 +152,17 @@ const Sidebar = ({ isOpen, onClose }) => {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden"
+            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 lg:hidden"
+            aria-label="Close sidebar"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        {/* User */}
+        {/* ====================================
+            Logged-in User
+        ==================================== */}
+
         <div className="border-b border-slate-200 p-4">
           <div className="rounded-xl bg-slate-50 p-3">
             <p className="truncate text-sm font-semibold text-slate-900">
@@ -118,14 +173,20 @@ const Sidebar = ({ isOpen, onClose }) => {
               {user?.email || ""}
             </p>
 
-            <span className="mt-2 inline-block rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium capitalize text-blue-700">
-              {user?.role?.replace("_", " ") || "user"}
+            <span className="mt-2 inline-block rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-700">
+              {formatRole(user?.role)}
             </span>
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 space-y-1 overflow-y-auto p-4">
+        {/* ====================================
+            Navigation
+        ==================================== */}
+
+        <nav
+          aria-label="Primary navigation"
+          className="flex-1 space-y-1 overflow-y-auto p-4"
+        >
           {visibleNavigation.map((item) => {
             const Icon = item.icon;
 
@@ -142,7 +203,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                   }`
                 }
               >
-                <Icon className="h-5 w-5 shrink-0" />
+                <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
 
                 <span>{item.label}</span>
               </NavLink>
@@ -150,20 +211,26 @@ const Sidebar = ({ isOpen, onClose }) => {
           })}
         </nav>
 
-        {/* Logout */}
+        {/* ====================================
+            Logout
+        ==================================== */}
+
         <div className="border-t border-slate-200 px-4 pt-3">
           <button
             type="button"
             onClick={handleLogout}
             className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-red-600 transition hover:bg-red-50"
           >
-            <LogOut className="h-5 w-5 shrink-0" />
+            <LogOut className="h-5 w-5 shrink-0" aria-hidden="true" />
 
             <span>Logout</span>
           </button>
         </div>
 
-        {/* Footer */}
+        {/* ====================================
+            Footer
+        ==================================== */}
+
         <div className="border-t border-slate-200 p-4">
           <p className="text-center text-xs text-slate-400">
             Loan Management System
