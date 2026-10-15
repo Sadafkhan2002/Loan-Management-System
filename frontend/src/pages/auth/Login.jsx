@@ -3,12 +3,18 @@ import { Navigate, useNavigate } from "react-router-dom";
 
 import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
+
 import { useAuth } from "../../context/AuthContext";
 import { getErrorMessage } from "../../utils/error";
 
 const Login = () => {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, loading: authLoading } = useAuth();
+
   const navigate = useNavigate();
+
+  // ==========================================
+  // Form State
+  // ==========================================
 
   const [form, setForm] = useState({
     email: "",
@@ -18,9 +24,9 @@ const Login = () => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // ==========================================
+  // Handle Input Changes
+  // ==========================================
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -29,32 +35,75 @@ const Login = () => {
       ...previousForm,
       [name]: value,
     }));
+
+    // Clear previous errors when the user edits the form.
+    if (error) {
+      setError("");
+    }
   };
+
+  // ==========================================
+  // Handle Login
+  // ==========================================
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
+    if (loading) return;
+
     setError("");
+
+    const email = form.email.trim();
+
+    if (!email || !form.password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await login(form.email.trim(), form.password);
+      await login(email, form.password);
 
       navigate("/dashboard", {
         replace: true,
       });
-    } catch (error) {
+    } catch (err) {
+      // Display intentional backend error messages.
+      // Example: "Invalid email or password."
       setError(
-        getErrorMessage(error, "Login failed. Please check your credentials."),
+        getErrorMessage(err, "Login failed. Please check your credentials."),
       );
     } finally {
       setLoading(false);
     }
   };
 
+  // ==========================================
+  // Authentication Redirect
+  // ==========================================
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100">
+        <p className="text-sm text-slate-600">Checking authentication...</p>
+      </div>
+    );
+  }
+
+  if (isAuthenticated) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // ==========================================
+  // Render Login Page
+  // ==========================================
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl sm:p-8">
+        {/* Application Branding */}
+
         <div className="mb-8 text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-blue-600 text-xl font-bold text-white">
             LM
@@ -67,16 +116,23 @@ const Login = () => {
           <p className="mt-2 text-sm text-slate-500">Sign in to your account</p>
         </div>
 
+        {/* Error Message */}
+
         {error && (
           <div
             role="alert"
+            aria-live="polite"
             className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
           >
             {error}
           </div>
         )}
 
+        {/* Login Form */}
+
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Email */}
+
           <Input
             label="Email"
             type="email"
@@ -84,8 +140,11 @@ const Login = () => {
             value={form.email}
             onChange={handleChange}
             placeholder="Enter your email"
+            autoComplete="email"
             required
           />
+
+          {/* Password */}
 
           <Input
             label="Password"
@@ -94,13 +153,18 @@ const Login = () => {
             value={form.password}
             onChange={handleChange}
             placeholder="Enter your password"
+            autoComplete="current-password"
             required
           />
+
+          {/* Submit Button */}
 
           <Button type="submit" disabled={loading} className="w-full">
             {loading ? "Signing in..." : "Sign In"}
           </Button>
         </form>
+
+        {/* Footer */}
 
         <div className="mt-6 rounded-lg bg-slate-50 p-3 text-center">
           <p className="text-xs text-slate-500">
