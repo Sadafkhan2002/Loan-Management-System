@@ -1,30 +1,24 @@
 require("dotenv").config();
 
+const databaseConfig = {
+  username: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
+  host: process.env.DB_HOST,
+  port: Number(process.env.DB_PORT || 4000),
+  dialect: "mysql",
+  dialectOptions: {
+    ssl: {
+      minVersion: "TLSv1.2",
+    },
+  },
+};
+
 module.exports = {
-  development: {
-    username: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || "",
-    database: process.env.DB_NAME || "loan_management_db",
-    host: process.env.DB_HOST || "localhost",
-    port: process.env.DB_PORT || 3306,
-    dialect: "mysql",
-  },
-
+  development: { ...databaseConfig },
   test: {
-    username: process.env.DB_USER || "root",
-    password: process.env.DB_PASSWORD || "",
+    ...databaseConfig,
     database: "loan_management_test",
-    host: process.env.DB_HOST || "localhost",
-    port: process.env.DB_PORT || 3306,
-    dialect: "mysql",
   },
-
-  production: {
-    username: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 3306,
-    dialect: "mysql",
-  },
+  production: { ...databaseConfig },
 };

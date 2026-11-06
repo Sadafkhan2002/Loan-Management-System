@@ -7,14 +7,20 @@ const errorHandler =
   require("./middleware/error.middleware");
 
 const app = express();
+require("./database/models");
 
 // ==========================================
 // Middleware
 // ==========================================
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     credentials: true,
   })
 );
